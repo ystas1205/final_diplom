@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-# from backend.models import Contact
+from backend.models import Contact
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -11,4 +11,9 @@ class UserSerializer(serializers.ModelSerializer):
                   'last_name', 'email')
 
 
-
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = ('id', 'user', 'city',
+                  'street', 'house', 'structure', 'building', 'apartment',
+                  'phone')

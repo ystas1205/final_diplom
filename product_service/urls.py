@@ -18,8 +18,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+
+
+
+
+app_name = 'backend'
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/',
-         include('backend.urls', namespace='backend'))
+         include('backend.urls')),
 ]

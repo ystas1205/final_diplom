@@ -1,0 +1,25 @@
+# примеры API-запросов
+
+@baseUrl = http://localhost:8000/api/v1
+
+# создание продукта
+POST {{baseUrl}}/basket
+Content-Type: application/x-www-form-urlencoded
+Authorization: Token 5de8c775c27ec9eb0507c8c4605e87633645263b
+
+items=[ { "product_info": 25, "quantity": 13 }, { "product_info": 26, "quantity": 12, } ]
+
+# items="[
+# 	{
+# 		"product_info":  25,
+# 		"quantity": 13
+		
+# 	},
+# 	{
+# 		"product_info":  26,
+# 		"quantity": 12,
+		
+# 	}
+# ]"'
+
+

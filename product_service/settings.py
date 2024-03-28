@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'debug_toolbar',
 
     'backend',
+    'django_celery_results',
 ]
 
 MIDDLEWARE = [
@@ -169,11 +170,15 @@ REST_FRAMEWORK = {
     ),
 
 }
-# DJOSER = {
-#     # 'USER_CREATE_PASSWORD_RETYPE': True,
-#     'SEND_ACTIVATION_EMAIL': True,
-#     'SET_PASSWORD_RETYPE': True,
-#     'PASSWORD_RESET_CONFIRM_RETYPE': True,
-#     # 'TOKEN_MODEL': None,  # We use only JWT
-#     'ACTIVATION_URL': 'auth/verify/{uid}/{token}/',
-# }
+CELERY_BROKER_URL ='redis://localhost:6379/0'
+
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
+
+CELERY_CACHE_BACKEND = 'django-cache'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'redis://localhost:6379/1',
+    }
+}

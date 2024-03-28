@@ -1,12 +1,18 @@
 from typing import Type
 
+from celery import shared_task
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db.models.signals import post_save
 from django.dispatch import receiver, Signal
 from django_rest_passwordreset.signals import reset_password_token_created
-
+from backend.tasks import new_user
 from backend.models import ConfirmEmailToken, User
+from django.db.models import signals
+
+
+
+# from requests_oauthlib import msg
 
 new_user_registered = Signal()
 
@@ -14,7 +20,8 @@ new_order = Signal()
 
 
 @receiver(reset_password_token_created)
-def password_reset_token_created(sender, instance, reset_password_token, **kwargs):
+def password_reset_token_created(sender, instance, reset_password_token,
+                                 **kwargs):
     """
     Отправляем письмо с токеном для сброса пароля
     When a token is created, an e-mail needs to be sent to the user
@@ -39,26 +46,40 @@ def password_reset_token_created(sender, instance, reset_password_token, **kwarg
     msg.send()
 
 
+
 @receiver(post_save, sender=User)
-def new_user_registered_signal(sender: Type[User], instance: User, created: bool, **kwargs):
+def new_user_registered_signal(sender: Type[User], instance: User,
+                               created: bool, **kwargs):
+    # if not instance.is_verified:
+        # Send verification email
+    new_user.delay(instance.pk)
+    # signals.post_save.connect(user_post_save, sender=User)
     """
      отправляем письмо с подтрердждением почты
     """
-    if created and not instance.is_active:
+    # if created and not instance.is_active:
         # send an e-mail to the user
-        token, _ = ConfirmEmailToken.objects.get_or_create(user_id=instance.pk)
+        # token, _ = ConfirmEmailToken.objects.get_or_create(user_id=instance.pk)
 
-        msg = EmailMultiAlternatives(
-            # title:
-            f"Password Reset Token for {instance.email}",
-            # message:
-            token.key,
-            # from:
-            settings.EMAIL_HOST_USER,
-            # to:
-            [instance.email]
-        )
-        msg.send()
+        # msg = EmailMultiAlternatives(
+        #     # title:
+        #     f"Password Reset Token for {instance.email}",
+        #     # message:
+        #     token.key,
+        #     # from:
+        #     settings.EMAIL_HOST_USER,
+        #     # to:
+        #     [instance.email]
+        # )
+        # msg.send()
+        # send_mail(
+        #     f"Password Reset Token for {instance.email}",
+        #     token.key,
+        #     settings.EMAIL_HOST_USER,
+        #     [instance.email],
+        #     fail_silently=False,
+        # )
+
 
 
 @receiver(new_order)

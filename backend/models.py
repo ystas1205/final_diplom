@@ -106,7 +106,7 @@ class Shop(models.Model):
     state = models.BooleanField(verbose_name='статус получения заказов',
                                 default=True)
 
-    # filename
+
 
     class Meta:
         verbose_name = 'Магазин'

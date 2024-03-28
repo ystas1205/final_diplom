@@ -1,7 +1,8 @@
 import json
 from typing import io
-
+from backend.signals import new_user_registered_signal
 import yaml
+from celery import shared_task
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
 
@@ -23,7 +24,8 @@ from distutils.util import strtobool
 from rest_framework.request import Request
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist, \
+    FieldDoesNotExist, EmptyResultSet
 from django.core.validators import URLValidator
 from django.db import IntegrityError
 from django.db.models import Q, Sum, F
@@ -37,6 +39,7 @@ from ujson import loads as load_json
 import ujson
 from yaml import load as load_yaml, Loader
 from backend.signals import new_user_registered, new_order
+from product_service.celery import app
 
 
 class RegisterAccount(APIView):
@@ -71,6 +74,7 @@ class RegisterAccount(APIView):
                     user = user_serializer.save()
                     user.set_password(request.data['password'])
                     user.save()
+
                     return Response({'status': 'Регистрация прошла успешно'},
                                     status=status.HTTP_201_CREATED)
                 else:
@@ -636,7 +640,7 @@ class PartnerState(APIView):
 
 class Partnerexport(APIView):
     def post(self, request, *args, **kwargs):
-        global datas
+
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'Log in required'},
                                 status=403)
@@ -645,110 +649,54 @@ class Partnerexport(APIView):
         #     return JsonResponse(
         #         {'Status': False, 'Error': 'Только для магазинов'}, status=403)
 
-        # product = (ProductInfo.objects.all().select_related('shop','product__category').prefetch_related(
-        #     'product_parameters__parameter').distinct())
-        # product = Category.objects.all().prefetch_related('shops',
-        #                                                   'products__product_infos__product_parameters__parameter')
-        #
-        # product_list = product.values()
-        # a = list(product_list)
-        # list_name = []
-        # list_shop = []
-        # for i in product:
-        #
-        #     for j in i.shops.all():
-        #         if j.name in list_shop:
-        #             continue
-        #         list_shop.append(j.name)
-        #         # datas={'shop':j.name}
-        #
-        #     for j in i.products.all():
-        #         # list_name.append({'category':j.category_id,'name':j.name})
-        #         for h in j.product_infos.all():
-        #             list_name.append({
-        #                 'id': h.external_id,
-        #                 'category': j.category_id,
-        #                 'name': j.name,
-        #                 'model': h.model,
-        #                 'price': h.price,
-        #                 'price_rrc': h.price_rrc,
-        #                 'quantity': h.quantity,
-        #             })
-        #
-        # print(list_name)
-        # print(list_shop)
-        #
-        # data = {'shop': list_shop, 'categories': a, 'goods': list_name}
-        #
-        # with open("output.yaml", "w", encoding='utf-8') as file:
-        #     yaml.dump(data, file, allow_unicode=True)
-        shop = Shop.objects.all().prefetch_related(
-            'categories__products__product_infos__product_parameters__parameter')
-        # parameter = Parameter.objects.all()
-        list_shop = [shop.name for shop in shop]
-        list_category = []
-        list_goods = []
-        for products in shop:
-            for category in products.categories.all():
+        name_shop = request.data.get('shop').capitalize()
+        if name_shop:
+            datas = (
+                Shop.objects.filter.delay(state=True, user_id=request.user.id,
+                                          name=name_shop).prefetch_related(
+                    'categories__products__product_infos__product_parameters__'
+                    'parameter'))
+            if not datas:
+                return Response(
+                    {'status': 'Введены некорректные данные'},
+                    status=status.HTTP_403_FORBIDDEN)
 
-                list_category.append({
-                    'id': category.id,
-                    'name': category.name
-                })
-                list_par=[]
-                for product in category.products.all():
-                    for product_info in product.product_infos.all():
-
-                        for par in product_info.product_parameters.all():
-                            print(par)
-                            # print(par.parameter.product_parameters)
-                            # a = par.parameter.product_parameters
-                            # b =a
-
-
-
-
-                        # for par in product_info.product_parameters.all():
-
-
-                            # a = par.parameter
-                            # print(par.parameter)
-
-
-
-
-
-
-
-
-
-
-                        # list_par.append({product_info.parameter.name:product_info.parameter.value})
-
-
-
-                        list_goods.append({
-                            'category': product.category_id,
-                            'name': product.name,
-                            'model': product_info.price,
-                            'id': product_info.external_id,
-                            'price': product_info.price,
-                            'price_rrc': product_info.price_rrc,
-                            'quantity': product_info.quantity,
-                            # 'parameter':i.parameter.name
-
-
+            list_category = []
+            list_goods = []
+            for shops in datas:
+                shop = shops.name
+                for category in shops.categories.all():
+                    list_category.append({
+                        'id': category.id,
+                        'name': category.name
                     })
-                print(list_par)
 
-        data = {
-            'shop': list_shop,
-            'category': list_category,
-            'good': list_goods
-        }
+                    for product in category.products.all():
+                        for product_info in product.product_infos.all():
+                            dict_parameter = {}
+                            for par in product_info.product_parameters.all():
+                                dict_parameter.update(
+                                    {par.parameter.name: par.value})
 
-        with open("output.yaml", "w", encoding='utf-8') as file:
-            yaml.dump(data, file, allow_unicode=True)
+                            list_goods.append({
+                                'category': product.category_id,
+                                'name': product.name,
+                                'model': product_info.price,
+                                'id': product_info.external_id,
+                                'price': product_info.price,
+                                'price_rrc': product_info.price_rrc,
+                                'quantity': product_info.quantity,
+                                'parameter': dict_parameter,
 
-        serializer = ShopSerializer(shop, many=True)
-        return Response(serializer.data)
+                            })
+
+            data = {
+                'shop': shop,
+                'category': list_category,
+                'goods': list_goods,
+            }
+
+            with open("product.yaml", "w", encoding='utf-8') as file:
+                yaml.dump(data, file, allow_unicode=True, sort_keys=False)
+                return Response({'status': 'Экспорт данных прошел успешно'},
+                                status=status.HTTP_201_CREATED)

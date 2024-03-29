@@ -1,16 +1,14 @@
 from typing import Type
 
-from celery import shared_task
+import django_rest_passwordreset
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db.models.signals import post_save
 from django.dispatch import receiver, Signal
 from django_rest_passwordreset.signals import reset_password_token_created
-from backend.tasks import new_user
+from backend.tasks import task_new_user, task_password_reset
 from backend.models import ConfirmEmailToken, User
-from django.db.models import signals
-
-
+from django.contrib.auth import get_user_model
 
 # from requests_oauthlib import msg
 
@@ -22,6 +20,9 @@ new_order = Signal()
 @receiver(reset_password_token_created)
 def password_reset_token_created(sender, instance, reset_password_token,
                                  **kwargs):
+
+    task_password_reset.delay(reset_password_token.user_id)
+
     """
     Отправляем письмо с токеном для сброса пароля
     When a token is created, an e-mail needs to be sent to the user
@@ -33,53 +34,28 @@ def password_reset_token_created(sender, instance, reset_password_token,
     """
     # send an e-mail to the user
 
-    msg = EmailMultiAlternatives(
-        # title:
-        f"Password Reset Token for {reset_password_token.user}",
-        # message:
-        reset_password_token.key,
-        # from:
-        settings.EMAIL_HOST_USER,
-        # to:
-        [reset_password_token.user.email]
-    )
-    msg.send()
-
+    # msg = EmailMultiAlternatives(
+    #     # title:
+    #     f"Password Reset Token for {reset_password_token.user}",
+    #     # message:
+    #     reset_password_token.key,
+    #     # from:
+    #     settings.EMAIL_HOST_USER,
+    #     # to:
+    #     [reset_password_token.user.email]
+    # )
+    # msg.send()
 
 
 @receiver(post_save, sender=User)
 def new_user_registered_signal(sender: Type[User], instance: User,
                                created: bool, **kwargs):
-    # if not instance.is_verified:
-        # Send verification email
-    new_user.delay(instance.pk)
-    # signals.post_save.connect(user_post_save, sender=User)
     """
-     отправляем письмо с подтрердждением почты
+    отправляем письмо с подтрердждением почты
     """
-    # if created and not instance.is_active:
-        # send an e-mail to the user
-        # token, _ = ConfirmEmailToken.objects.get_or_create(user_id=instance.pk)
 
-        # msg = EmailMultiAlternatives(
-        #     # title:
-        #     f"Password Reset Token for {instance.email}",
-        #     # message:
-        #     token.key,
-        #     # from:
-        #     settings.EMAIL_HOST_USER,
-        #     # to:
-        #     [instance.email]
-        # )
-        # msg.send()
-        # send_mail(
-        #     f"Password Reset Token for {instance.email}",
-        #     token.key,
-        #     settings.EMAIL_HOST_USER,
-        #     [instance.email],
-        #     fail_silently=False,
-        # )
-
+    if created and not instance.is_active:
+        task_new_user.delay(instance.pk)
 
 
 @receiver(new_order)

@@ -53,9 +53,7 @@ class RegisterAccount(APIView):
         # проверяем обязательные аргументы
         if {'first_name', 'last_name', 'email', 'password', 'company',
             'position'}.issubset(request.data):
-
             # проверяем пароль на сложность
-            sad = 'asd'
             try:
                 validate_password(request.data['password'])
             except Exception as password_error:
@@ -125,7 +123,7 @@ class LoginAccount(APIView):
 
             if user is not None:
                 if user.is_active:
-                    token, _ = Token.objects.get_or_create(user=user)
+                    token, _ = Token.objects.get_or_create(user=user.pk)
 
                     return Response({'status': 'Авторизация прошла успешно',
                                      'Token': token.key})
@@ -134,16 +132,6 @@ class LoginAccount(APIView):
 
         return Response({'status': 'Не указаны все необходимые аргументы'},
                         status=status.HTTP_400_BAD_REQUEST)
-
-
-# class UserView(APIView):
-#     def get(self, request, *args, **kwargs):
-#         if not request.user.is_authenticated:
-#             return Response({'message': 'Требуется войти'},
-#                             status=status.HTTP_403_FORBIDDEN)
-#         user = User.objects.all()
-#         serializer = UserSerializer(user,many=True)
-#         return Response(serializer.data)
 
 
 class ContactView(APIView):
@@ -279,12 +267,9 @@ class BasketView(APIView):
                 return JsonResponse(
                     {'Status': False, 'Errors': 'Неверный формат запроса'})
             else:
-                # contact = list(Contact.objects.filter(
-                #     user_id=request.user.id).select_related('user'))
 
                 basket, _ = Order.objects.get_or_create(
                     user_id=request.user.id, state='basket')
-                # contact_id=contact[0].id)
                 objects_created = 0
                 for order_item in items_dict:
                     order_item.update({'order': basket.id})

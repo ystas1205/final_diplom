@@ -6,7 +6,7 @@ from django.core.mail import EmailMultiAlternatives, send_mail
 from django.db.models.signals import post_save
 from django.dispatch import receiver, Signal
 from django_rest_passwordreset.signals import reset_password_token_created
-from backend.tasks import task_new_user, task_password_reset
+from backend.tasks import task_new_user, task_password_reset, task_new_order
 from backend.models import ConfirmEmailToken, User
 from django.contrib.auth import get_user_model
 
@@ -20,7 +20,6 @@ new_order = Signal()
 @receiver(reset_password_token_created)
 def password_reset_token_created(sender, instance, reset_password_token,
                                  **kwargs):
-
     task_password_reset.delay(reset_password_token.user_id)
 
     """
@@ -32,19 +31,6 @@ def password_reset_token_created(sender, instance, reset_password_token,
     :param kwargs:
     :return:
     """
-    # send an e-mail to the user
-
-    # msg = EmailMultiAlternatives(
-    #     # title:
-    #     f"Password Reset Token for {reset_password_token.user}",
-    #     # message:
-    #     reset_password_token.key,
-    #     # from:
-    #     settings.EMAIL_HOST_USER,
-    #     # to:
-    #     [reset_password_token.user.email]
-    # )
-    # msg.send()
 
 
 @receiver(post_save, sender=User)
@@ -60,20 +46,26 @@ def new_user_registered_signal(sender: Type[User], instance: User,
 
 @receiver(new_order)
 def new_order_signal(user_id, **kwargs):
+    task_new_order.delay(user_id)
+
+
+
+
+
     """
     отправяем письмо при изменении статуса заказа
     """
     # send an e-mail to the user
-    user = User.objects.get(id=user_id)
-
-    msg = EmailMultiAlternatives(
-        # title:
-        f"Обновление статуса заказа",
-        # message:
-        'Заказ сформирован',
-        # from:
-        settings.EMAIL_HOST_USER,
-        # to:
-        [user.email]
-    )
-    msg.send()
+    # user = User.objects.get(id=user_id)
+    #
+    # msg = EmailMultiAlternatives(
+    #     # title:
+    #     f"Обновление статуса заказа",
+    #     # message:
+    #     'Заказ сформирован',
+    #     # from:
+    #     settings.EMAIL_HOST_USER,
+    #     # to:
+    #     [user.email]
+    # )
+    # msg.send()

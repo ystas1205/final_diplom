@@ -40,6 +40,7 @@ import ujson
 from yaml import load as load_yaml, Loader
 from backend.signals import new_user_registered, new_order
 from product_service.celery import app
+from backend.tasks import task_product_export,task_product_import
 
 
 class RegisterAccount(APIView):
@@ -508,8 +509,10 @@ class PartnerUpdate(APIView):
             return JsonResponse({'Status': False, 'Error': 'Log in required'},
                                 status=403)
 
-        # if request.user.type != 'shop':
-        #     return JsonResponse({'Status': False, 'Error': 'Только для магазинов'}, status=403)
+
+
+        if request.user.type != 'shop':
+            return JsonResponse({'Status': False, 'Error': 'Только для магазинов'}, status=403)
 
         url = request.data.get('url')
         if url:
@@ -625,63 +628,14 @@ class PartnerState(APIView):
 
 class Partnerexport(APIView):
     def post(self, request, *args, **kwargs):
-
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'},
-                                status=403)
+            return Response({'message': 'Требуется войти'},
+                            status=status.HTTP_403_FORBIDDEN)
+        if request.user.type != 'shop':
+            return Response({'message': 'Только для магазинов'},
+                            status=status.HTTP_403_FORBIDDEN)
 
-        # if request.user.type != 'shop':
-        #     return JsonResponse(
-        #         {'Status': False, 'Error': 'Только для магазинов'}, status=403)
+        task_product_export.delay(request.user.id)
+        return Response({'status': 'Экспорт данных прошел успешно'},
 
-        name_shop = request.data.get('shop').capitalize()
-        if name_shop:
-            datas = (
-                Shop.objects.filter.delay(state=True, user_id=request.user.id,
-                                          name=name_shop).prefetch_related(
-                    'categories__products__product_infos__product_parameters__'
-                    'parameter'))
-            if not datas:
-                return Response(
-                    {'status': 'Введены некорректные данные'},
-                    status=status.HTTP_403_FORBIDDEN)
-
-            list_category = []
-            list_goods = []
-            for shops in datas:
-                shop = shops.name
-                for category in shops.categories.all():
-                    list_category.append({
-                        'id': category.id,
-                        'name': category.name
-                    })
-
-                    for product in category.products.all():
-                        for product_info in product.product_infos.all():
-                            dict_parameter = {}
-                            for par in product_info.product_parameters.all():
-                                dict_parameter.update(
-                                    {par.parameter.name: par.value})
-
-                            list_goods.append({
-                                'category': product.category_id,
-                                'name': product.name,
-                                'model': product_info.price,
-                                'id': product_info.external_id,
-                                'price': product_info.price,
-                                'price_rrc': product_info.price_rrc,
-                                'quantity': product_info.quantity,
-                                'parameter': dict_parameter,
-
-                            })
-
-            data = {
-                'shop': shop,
-                'category': list_category,
-                'goods': list_goods,
-            }
-
-            with open("product.yaml", "w", encoding='utf-8') as file:
-                yaml.dump(data, file, allow_unicode=True, sort_keys=False)
-                return Response({'status': 'Экспорт данных прошел успешно'},
-                                status=status.HTTP_201_CREATED)
+                        status=status.HTTP_201_CREATED)

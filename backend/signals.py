@@ -5,7 +5,6 @@ from django_rest_passwordreset.signals import reset_password_token_created
 from backend.tasks import task_new_user, task_new_order, task_password_reset
 from backend.models import ConfirmEmailToken, User
 
-
 new_user_registered = Signal()
 
 new_order = Signal()
@@ -36,5 +35,4 @@ def new_order_signal(user_id, **kwargs):
     """
     отправяем письмо при изменении статуса заказа
     """
-
     task_new_order.delay(user_id)

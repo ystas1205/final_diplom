@@ -2,6 +2,7 @@ import json
 from typing import io
 from backend.signals import new_user_registered_signal
 import yaml
+from django.contrib.auth import get_user_model
 from celery import shared_task
 from rest_framework.parsers import JSONParser
 from rest_framework.request import Request
@@ -40,7 +41,7 @@ import ujson
 from yaml import load as load_yaml, Loader
 from backend.signals import new_user_registered, new_order
 from product_service.celery import app
-from backend.tasks import task_product_export,task_product_import
+from backend.tasks import task_product_export, task_product_import
 
 
 class RegisterAccount(APIView):
@@ -52,6 +53,7 @@ class RegisterAccount(APIView):
 
     def post(self, request, *args, **kwargs):
         # проверяем обязательные аргументы
+        # получаем почту с токеном
         if {'first_name', 'last_name', 'email', 'password', 'company',
             'position'}.issubset(request.data):
             # проверяем пароль на сложность
@@ -124,7 +126,7 @@ class LoginAccount(APIView):
 
             if user is not None:
                 if user.is_active:
-                    token, _ = Token.objects.get_or_create(user=user.pk)
+                    token, _ = Token.objects.get_or_create(user=user)
 
                     return Response({'status': 'Авторизация прошла успешно',
                                      'Token': token.key})
@@ -509,10 +511,11 @@ class PartnerUpdate(APIView):
             return JsonResponse({'Status': False, 'Error': 'Log in required'},
                                 status=403)
 
-
-
-        if request.user.type != 'shop':
-            return JsonResponse({'Status': False, 'Error': 'Только для магазинов'}, status=403)
+        # if request.user.type != 'shop':
+        #     return JsonResponse({'Status': False, 'Error': 'Только для магазинов'}, status=403)
+        UserModel = get_user_model()
+        user = UserModel.objects.get(pk=request.user.id)
+        user_id = user.pk
 
         url = request.data.get('url')
         if url:
@@ -526,37 +529,15 @@ class PartnerUpdate(APIView):
                 stream = get(url).content
 
                 data = load_yaml(stream, Loader=Loader)
+                if data == {404: 'Not Found'}:
+                    return Response({'message': 'Неверный url'},
+                                    status=status.HTTP_404_NOT_FOUND)
 
-                shop, _ = Shop.objects.get_or_create(name=data['shop'],
-                                                     user_id=request.user.id)
-                for category in data['categories']:
-                    category_object, _ = Category.objects.get_or_create(
-                        id=category['id'], name=category['name'])
-                    category_object.shops.add(shop.id)
-                    category_object.save()
-                ProductInfo.objects.filter(shop_id=shop.id).delete()
-                for item in data['goods']:
-                    product, _ = Product.objects.get_or_create(
-                        name=item['name'], category_id=item['category'])
+                task_product_import.delay(request.user.id, data, user_id,
+                                          *args,
+                                          **kwargs)
 
-                    product_info = ProductInfo.objects.create(
-                        product_id=product.id,
-                        external_id=item['id'],
-                        model=item['model'],
-                        price=item['price'],
-                        price_rrc=item['price_rrc'],
-                        quantity=item['quantity'],
-                        shop_id=shop.id)
-                    for name, value in item['parameters'].items():
-                        parameter_object, _ = Parameter.objects.get_or_create(
-                            name=name)
-                        ProductParameter.objects.create(
-                            product_info_id=product_info.id,
-                            parameter_id=parameter_object.id,
-                            value=value)
-
-                return JsonResponse({'Status': True})
-
+            return JsonResponse({'Status': True})
         return JsonResponse({'Status': False,
                              'Errors': 'Не указаны все необходимые аргументы'})
 
@@ -631,9 +612,9 @@ class Partnerexport(APIView):
         if not request.user.is_authenticated:
             return Response({'message': 'Требуется войти'},
                             status=status.HTTP_403_FORBIDDEN)
-        if request.user.type != 'shop':
-            return Response({'message': 'Только для магазинов'},
-                            status=status.HTTP_403_FORBIDDEN)
+        # if request.user.type != 'shop':
+        #     return Response({'message': 'Только для магазинов'},
+        #                     status=status.HTTP_403_FORBIDDEN)
 
         task_product_export.delay(request.user.id)
         return Response({'status': 'Экспорт данных прошел успешно'},

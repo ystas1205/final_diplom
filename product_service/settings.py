@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from tests.settings import BASE_DIR
+
+from product_service.celery import app
 
 load_dotenv()
 
@@ -48,13 +51,11 @@ INSTALLED_APPS = [
 
     'rest_framework',
     'rest_framework.authtoken',
-    # 'django_filters',
-    # 'djoser',
     'django_rest_passwordreset',
     'debug_toolbar',
-
     'backend',
     'django_celery_results',
+    'import_export'
 ]
 
 MIDDLEWARE = [
@@ -137,6 +138,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
 AUTH_USER_MODEL = 'backend.User'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -182,3 +185,13 @@ CACHES = {
         'LOCATION': 'redis://localhost:6379/1',
     }
 }
+
+# app.conf.update(
+#     task_serializer='json',
+#     accept_content=['json'],  # Ignore other content
+#     result_serializer='json',
+#     timezone='Europe/Oslo',
+#     enable_utc=True,
+# )
+#
+# CELERY_TASK_ALWAYS_EAGER  = True

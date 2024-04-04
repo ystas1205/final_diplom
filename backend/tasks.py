@@ -1,5 +1,8 @@
+# from urllib import request
+
 import yaml
 import logging
+from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
@@ -9,54 +12,55 @@ from backend.models import ConfirmEmailToken, User, Shop, Category, \
     ProductParameter, Parameter, ProductInfo, Product
 
 
+
 @app.task
 def task_new_user(user_id):
-    UserModel = get_user_model()
+    """
+    отправляем письмо с подтрердждением почты
+    """
+    # UserModel = get_user_model()
     try:
-        user = UserModel.objects.get(pk=user_id)
+        # user = UserModel.objects.get(pk=user_id)
         token, _ = ConfirmEmailToken.objects.get_or_create(user_id=user_id)
         send_mail(
             # title:
-            f"Password Reset Token for {user.email}",
+            f"Токен для {token.user}",
             # message:
             token.key,
             settings.EMAIL_HOST_USER,
             # from:
-            [user.email],
+            [token.user.email],
             # to:
             fail_silently=False,
         )
-    except UserModel.DoesNotExist:
+    except ConfirmEmailToken.DoesNotExist:
         logging.warning(
             "Tried to send verification email to non-existing user '%s'" % user_id)
     return 'Done'
 
 
-@app.task
+@shared_task
 def task_password_reset(user_id):
-    UserModel = get_user_model()
     try:
-        user = UserModel.objects.get(pk=user_id)
-        key = [data.key for data in ResetPasswordToken.objects.all()]
-
+        data = ResetPasswordToken.objects.get(user_id=user_id)
         send_mail(
             # title:
-            f"Password Reset Token for {user}",
+            f"Токен сброса пароля для {data}",
             # message:
-            ''.join(key),
+            data.key,
             # from:
             settings.EMAIL_HOST_USER,
             # to:
-            [user.email],
+            [data.user.email],
             fail_silently=False,
         )
-    except UserModel.DoesNotExist:
+    except ResetPasswordToken.DoesNotExist:
         logging.warning(
             "Tried to send verification email to non-existing user '%s'" % user_id)
     return 'Done'
 
 
-@app.task
+@shared_task
 def task_new_order(user_id):
     UserModel = get_user_model()
     try:
@@ -79,12 +83,11 @@ def task_new_order(user_id):
     return 'Done'
 
 
-@app.task
+@shared_task
 def task_product_export(user_id):
     UserModel = get_user_model()
     user = UserModel.objects.get(pk=user_id)
-    datas = Shop.objects.filter(state=True,
-                                user_id=user.id, ).prefetch_related(
+    datas = Shop.objects.filter(state=True,user_id=user.id, ).prefetch_related(
         'categories__products__product_infos__product_parameters__parameter')
     if datas:
         list_category = []
@@ -127,6 +130,33 @@ def task_product_export(user_id):
         return 'Done'
 
 
-@app.task
-def task_product_import(user_id):
-    pass
+@shared_task(bind=True)
+def task_product_import(self, item, data, user_id, *args, **kwargs):
+    shop, _ = Shop.objects.get_or_create(name=data['shop'],
+                                         user_id=user_id)
+    for category in data['categories']:
+        category_object, _ = Category.objects.get_or_create(
+            id=category['id'], name=category['name'])
+        category_object.shops.add(shop.id)
+        category_object.save()
+    ProductInfo.objects.filter(shop_id=shop.id).delete()
+    for item in data['goods']:
+        product, _ = Product.objects.get_or_create(
+            name=item['name'], category_id=item['category'])
+
+        product_info = ProductInfo.objects.create(
+            product_id=product.id,
+            external_id=item['id'],
+            model=item['model'],
+            price=item['price'],
+            price_rrc=item['price_rrc'],
+            quantity=item['quantity'],
+            shop_id=shop.id)
+        for name, value in item['parameters'].items():
+            parameter_object, _ = Parameter.objects.get_or_create(
+                name=name)
+            ProductParameter.objects.create(
+                product_info_id=product_info.id,
+                parameter_id=parameter_object.id,
+                value=value)
+    return 'Done'

@@ -29,3 +29,9 @@ urlpatterns = [
          include('backend.urls')),
     path("__debug__/", include("debug_toolbar.urls")),
 ]
+
+
+
+
+admin.site.site_header = "Панель администрирования"
+admin.site.index_title = "Сервис заказа товаров для розничных сетей"

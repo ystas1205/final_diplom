@@ -25,57 +25,112 @@ class CustomUserAdmin(UserAdmin):
         }),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
-    list_display = ('email', 'first_name', 'last_name', 'is_staff')
+    list_display = (
+        'id', 'first_name', 'last_name', 'email', 'is_staff', 'type',
+        'company',
+        'position', 'is_active')
+
+    list_display_links = ['id', 'first_name', 'last_name',
+                          'email']  # кликабельность полей
+    ordering = ['last_name']  # сортировка
+    list_editable = ['is_staff']  # можно редактировать
+    list_per_page = 5  # пагинация
+    actions = ['set_pub']
+    search_fields = ['last_name__startswith']  # список полей поиск
+    # list_filter = ['is_active'] # фильтр
+    # fields = ['id','last_name'] # поля которые можно редактировать по умолчанию можно все
+    # exclude = ['last_name'] # кроме полей которые можно редактировать
+    readonly_fields = [
+        'last_name']  # поля только для чтения которые нельзя редактировать
+
+    @admin.action(description='Статус персонала')
+    def set_pub(request, queryset):
+        queryset.update(set_pub=User.Status.PUBLISHED)
 
 
 @admin.register(Shop)
-class ShopAdmin(ImportExportModelAdmin,admin.ModelAdmin):
+class ShopAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'name', 'url', 'state', 'user']
+    list_display_links = ['id', 'name']
+    search_fields = ['name__startswith']
+    list_per_page = 5
 
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'name']
+    list_display_links = ['id', 'name']
+    search_fields = ['name__startswith']
+    list_per_page = 5
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'name', 'category']
+    list_display_links = ['id', 'name']
+    search_fields = ['name', 'category__name']
+    list_per_page = 5
 
 
 @admin.register(ProductInfo)
-class ProductInfoAdmin(admin.ModelAdmin):
+class ProductInfoAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'model', 'external_id', 'quantity', 'price',
                     'price_rrc', 'product', 'shop']
 
+    list_display_links = ['id', 'model']
+    search_fields = ['model', 'shop__name']
+    list_per_page = 5
+
 
 @admin.register(Parameter)
-class ParameterAdmin(admin.ModelAdmin):
+class ParameterAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'name']
+    list_display_links = ['id', 'name']
+    search_fields = ['name']
+    list_per_page = 5
 
 
 @admin.register(ProductParameter)
-class ProductParameterAdmin(admin.ModelAdmin):
+class ProductParameterAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'value', 'parameter', 'product_info_id']
+    list_display_links = ['id', 'value', 'parameter']
+    # search_fields = ['product_info_id'] # id перевести в строку нужно
+    list_per_page = 5
 
 
 @admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
+class OrderAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     pass
     list_display = ['id', 'user', 'dt', 'state', 'contact']
+    list_display_links = ['id', 'user']
+    search_fields = ['user__last_name', 'user__first_name']
+    list_editable = ['state']
+    actions = ['set_pub']
+    list_per_page = 5
+
+    @admin.action(description='Статус')
+    def set_pub(request, queryset):
+        queryset.update(set_pub=Order.Status.PUBLISHED)
 
 
 @admin.register(OrderItem)
-class OrderItemAdmin(admin.ModelAdmin):
+class OrderItemAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'quantity', 'order', 'product_info_id']
+    list_display_links = ['id', 'quantity']
+    list_per_page = 5
 
 
 @admin.register(Contact)
-class ContactAdmin(admin.ModelAdmin):
+class ContactAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_display = ['id', 'user', 'city', 'street', 'house', 'structure',
                     'building', 'apartment', 'phone']
+    list_display_links = ['id', 'user']
+    search_fields = ['user__last_name', 'user__first_name']
+    list_per_page = 5
 
 
 @admin.register(ConfirmEmailToken)
 class ConfirmEmailTokenAdmin(admin.ModelAdmin):
-    list_display = ('user', 'key', 'created_at',)
+    list_display = ('id', 'user', 'key', 'created_at',)
+    list_display_links = ['id', 'user']
+    search_fields = ['user__last_name', 'user__first_name']
